@@ -1,3 +1,4 @@
+import argparse
 import os
 import numpy as np
 import numpy.typing as NPT
@@ -62,6 +63,7 @@ def _list_scenes(dataset_dir: str) -> list[Path]:
 
 def run(path: str):
     # path = "/Users/eos/Downloads/datasets/mvimgnet"
+    print("RUNNING POSE GENERATION.")
     pose_folder = "poses"
     scenes = _list_scenes(path)
     with open(os.path.join(path, "scenes_list.txt"), "w") as f:
@@ -81,6 +83,7 @@ def run(path: str):
 
 def check(path: str):
     # path = "/Users/eos/Downloads/datasets/mvimgnet"
+    print("RUNNING POSE CHECK.")
     pose_folder = "poses"
     scenes = _list_scenes(path)
 
@@ -103,6 +106,16 @@ def check(path: str):
             pose_encoding_load = np.load(pose_file_path)
             nptest.assert_array_equal(pose_encoding_calc, pose_encoding_load)
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("path", help="Path to file")
+    parser.add_argument("--check", action="store_true", help="Run check.")
+    return parser.parse_args()
+
 
 if __name__ == "__main__":
-    check()
+    args = parse_args()
+    print(f"Path: {args.path}")
+    run(args.path)
+    if args.check:
+        check(args.path)

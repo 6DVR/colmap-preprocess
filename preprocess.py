@@ -68,6 +68,7 @@ def run(path: str):
     scenes = _list_scenes(path)
     with open(os.path.join(path, "scenes_list.txt"), "w") as f:
         for scene in scenes:
+            print(f"Processing scene: {scene}")
             scene_path = os.path.join(path, scene)
             ce, ci = get_cam_matrices(scene_path)
             if ce is None or ci is None:
@@ -92,6 +93,7 @@ def check(path: str):
     )
 
     for scene in scenes:
+        print(f"Checking scene: {scene}")
         scene_path = os.path.join(path, scene)
         ce, ci = get_cam_matrices(scene_path)
         if ce is None or ci is None:

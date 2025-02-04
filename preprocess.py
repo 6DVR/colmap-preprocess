@@ -4,6 +4,9 @@ import numpy as np
 import numpy.typing as NPT
 import numpy.testing as nptest
 from pathlib import Path
+
+from pydantic import BaseModel
+from PIL import Image
 from camera import getProjectionMatrix, getWorld2View2
 from models import CameraInfo
 from colmap_sceneinfo import get_cam_matrices, readColmapSceneInfo
@@ -61,63 +64,103 @@ def _list_scenes(dataset_dir: str) -> list[Path]:
     return second_tier
 
 
-def run(path: str):
-    # path = "/Users/eos/Downloads/datasets/mvimgnet"
+class Config(BaseModel):
+    path: str
+    output: str
+    pose_folder: str = "poses"
+    images_folder: str = "images"
+    scenes_list_file: str = "scenes_list.txt"
+    image_resize_wh: tuple[int, int] = (480, 640)
+
+
+def run(config: Config):
     print("RUNNING POSE GENERATION.")
-    pose_folder = "poses"
-    scenes = _list_scenes(path)
-    with open(os.path.join(path, "scenes_list.txt"), "w") as f:
+    os.makedirs(config.output, exist_ok=True)
+    scenes = _list_scenes(config.path)
+    with open(os.path.join(config.output, config.scenes_list_file), "w") as f:
         for scene in scenes:
             print(f"Processing scene: {scene}")
-            scene_path = os.path.join(path, scene)
+            scene_path = os.path.join(config.path, scene)
+            scene_output_path = os.path.join(config.output, scene)
             ce, ci = get_cam_matrices(scene_path)
             if ce is None or ci is None:
                 continue
             f.write(f"{scene}\n")
             scene_info = readColmapSceneInfo(scene_path)
-            os.makedirs(os.path.join(scene_path, pose_folder), exist_ok=True)
+            os.makedirs(
+                os.path.join(scene_output_path, config.pose_folder), exist_ok=True
+            )
+            os.makedirs(
+                os.path.join(scene_output_path, config.images_folder), exist_ok=True
+            )
             for camera in scene_info.cameras:
+                image_file_name = Path(camera.image_path).name
                 pose_file_name = f"pe_{camera.image_name}.npy"
-                pose_file_path = os.path.join(scene_path, pose_folder, pose_file_name)
+                img_resized = camera.image.resize(
+                    config.image_resize_wh, Image.BILINEAR
+                )
+                img_resized.save(
+                    os.path.join(
+                        scene_output_path, config.images_folder, image_file_name
+                    )
+                )
+                pose_file_path = os.path.join(
+                    scene_output_path, config.pose_folder, pose_file_name
+                )
                 pose_encoding = calc_scene_pose(camera)
                 np.save(pose_file_path, pose_encoding)
 
-def check(path: str):
-    # path = "/Users/eos/Downloads/datasets/mvimgnet"
+
+def check(config: Config):
     print("RUNNING POSE CHECK.")
-    pose_folder = "poses"
-    scenes = _list_scenes(path)
+    scenes = _list_scenes(config.path)
 
     scene_list = set(
-        open(os.path.join(path, "scenes_list.txt"), "r").read().splitlines()
+        open(os.path.join(config.output, config.scenes_list_file), "r")
+        .read()
+        .splitlines()
     )
 
     for scene in scenes:
         print(f"Checking scene: {scene}")
-        scene_path = os.path.join(path, scene)
+        scene_path = os.path.join(config.path, scene)
+        scene_output_path = os.path.join(config.output, scene)
         ce, ci = get_cam_matrices(scene_path)
         if ce is None or ci is None:
             continue
         assert scene in scene_list
         scene_info = readColmapSceneInfo(scene_path)
         for camera in scene_info.cameras:
+            image_file_name = Path(camera.image_path).name
+            image_file_path = os.path.join(
+                scene_output_path, config.images_folder, image_file_name
+            )
+            assert os.path.exists(image_file_path)
             pose_file_name = f"pe_{camera.image_name}.npy"
-            pose_file_path = os.path.join(scene_path, pose_folder, pose_file_name)
+            pose_file_path = os.path.join(
+                scene_output_path, config.pose_folder, pose_file_name
+            )
             assert os.path.exists(pose_file_path)
             pose_encoding_calc = calc_scene_pose(camera)
             pose_encoding_load = np.load(pose_file_path)
             nptest.assert_array_equal(pose_encoding_calc, pose_encoding_load)
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", help="Path to file")
-    parser.add_argument("--check", action="store_true", help="Run check.")
+    parser.add_argument("--output", "-o", required=True, help="Output directory")
+    parser.add_argument(
+        "--check", action="store_true", required=True, help="Run check."
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    print(f"Path: {args.path}")
-    run(args.path)
+    config = Config(**args.__dict__)
+    print(f"Config: {config}")
+
+    run(config)
     if args.check:
-        check(args.path)
+        check(config)

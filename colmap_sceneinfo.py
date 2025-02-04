@@ -86,6 +86,9 @@ def readColmapCameras(
         uid = extr.camera_id
 
         image_path = os.path.join(images_folder, os.path.basename(extr.name))
+        if not os.path.exists(image_path):
+            print(f"Image not found: {image_path}")
+            continue
         image_name = os.path.basename(image_path).split(".")[0]
         image = Image.open(image_path)
 

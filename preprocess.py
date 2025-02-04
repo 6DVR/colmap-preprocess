@@ -150,9 +150,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", help="Path to file")
     parser.add_argument("--output", "-o", required=True, help="Output directory")
-    parser.add_argument(
-        "--check", action="store_true", required=True, help="Run check."
-    )
+    parser.add_argument("--check", action="store_true", help="Run check.")
     return parser.parse_args()
 
 
